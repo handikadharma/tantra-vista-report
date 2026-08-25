@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tantra Vista - Public LED Report</title>
+<meta name="theme-color" content="#102334">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f2f4f7;color:#15202b;font-family:Arial,Helvetica,sans-serif}
+  .wrap{max-width:920px;margin:20px auto;padding:0 14px}
+  .card{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 10px 35px rgba(16,35,52,.14)}
+  .head{background:#102334;color:#fff;padding:26px 22px;text-align:center}
+  .badge{display:inline-block;background:#d8b24c;color:#111;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.4px}
+  h1{margin:14px 0 6px;font-size:25px}
+  .sub{opacity:.85;font-size:14px}
+  main{padding:22px}
+  table{width:100%;border-collapse:collapse;margin-bottom:22px}
+  td{padding:12px;border:1px solid #dde4ea;vertical-align:top}
+  td:first-child{width:34%;font-weight:700;background:#f7f9fb}
+  section{margin-top:25px}
+  h2{font-size:16px;margin:0 0 11px;padding-bottom:8px;border-bottom:2px solid #d8b24c}
+  .note{white-space:pre-wrap;line-height:1.6;padding:14px;border:1px solid #dde4ea;border-radius:10px;background:#fafafa}
+  .media{width:100%;max-height:620px;object-fit:contain;background:#111;border-radius:12px;display:block}
+  .foot{padding:17px;text-align:center;background:#102334;color:#fff;font-size:13px}
+  .loading,.error{padding:60px 25px;text-align:center}
+  .spinner{width:34px;height:34px;border:4px solid #dce3e8;border-top-color:#d8b24c;border-radius:50%;margin:0 auto 16px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error{color:#9d1b1b}
+  .error small{display:block;margin-top:10px;color:#666;line-height:1.5}
+  @media(max-width:600px){
+    .wrap{margin:0;padding:0}.card{border-radius:0;min-height:100vh}
+    main{padding:14px}h1{font-size:20px}td{padding:10px}td:first-child{width:38%}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="app" class="card">
+    <div class="loading">
+      <div class="spinner"></div>
+      <div>Memuat Maintenance Report...</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ================================
+   TANTRA VISTA PUBLIC REPORT VIEWER
+   URL contoh:
+   report-viewer.html?id=LED-20260825-080342
+   ================================ */
+
+const SUPABASE_URL = 'https://vwgoggpexrijvsydworr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gtH0xcRIWt50dIWSwZzFlA_lEWehgns';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const reportId = new URLSearchParams(window.location.search).get('id');
+const app = document.getElementById('app');
+
+function esc(value){
+  return String(value ?? '-')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function media(title, url, type){
+  if(!url) return '';
+  const safeUrl = esc(url);
+  if(type === 'video'){
+    return `<section>
+      <h2>${esc(title)}</h2>
+      <video class="media" controls playsinline preload="metadata">
+        <source src="${safeUrl}">
+        Browser Anda tidak mendukung pemutaran video.
+      </video>
+    </section>`;
+  }
+  return `<section>
+    <h2>${esc(title)}</h2>
+    <img class="media" src="${safeUrl}" alt="${esc(title)}" loading="lazy">
+  </section>`;
+}
+
+async function loadReport(){
+  if(!reportId){
+    app.innerHTML = `<div class="error"><h2>Report ID tidak ditemukan.</h2>
+      <small>Gunakan link seperti: report-viewer.html?id=LED-XXXXXXXX-XXXXXX</small></div>`;
+    return;
+  }
+
+  try{
+    const {data, error} = await supabase
+      .from('led_reports')
+      .select('*')
+      .eq('report_id', reportId)
+      .eq('status', 'LOCKED')
+      .maybeSingle();
+
+    if(error) throw error;
+
+    if(!data){
+      app.innerHTML = `<div class="error"><h2>Report tidak ditemukan.</h2>
+        <small>Report mungkin belum dikunci atau ID tidak valid.</small></div>`;
+      return;
+    }
+
+    document.title = `Maintenance Report ${data.report_id}`;
+
+    app.innerHTML = `
+      <div class="head">
+        <div class="badge">🔒 LOCKED REPORT</div>
+        <h1>MAINTENANCE REPORT LED SCREEN</h1>
+        <div class="sub">FINNS BEACH CLUB • TANTRA VISTA</div>
+      </div>
+
+      <main>
+        <table>
+          <tr><td>Report ID</td><td>${esc(data.report_id)}</td></tr>
+          <tr><td>Area</td><td>${esc(data.area)}</td></tr>
+          <tr><td>Teknisi</td><td>${esc(data.technician)}</td></tr>
+          <tr><td>Tanggal</td><td>${esc(data.report_date)}</td></tr>
+          <tr><td>Status</td><td>LOCKED</td></tr>
+        </table>
+
+        <section>
+          <h2>TEMUAN / TINDAKAN</h2>
+          <div class="note">${esc(data.description)}</div>
+        </section>
+
+        ${media('FOTO SEBELUM PERBAIKAN', data.before_photo_url, 'image')}
+        ${media('VIDEO SEBELUM PERBAIKAN', data.before_video_url, 'video')}
+        ${media('FOTO SESUDAH PERBAIKAN', data.after_photo_url, 'image')}
+        ${media('VIDEO SESUDAH PERBAIKAN', data.after_video_url, 'video')}
+      </main>
+
+      <div class="foot">
+        Report ini telah dikunci dan tidak dapat diedit.
+      </div>
+    `;
+  }catch(err){
+    console.error(err);
+    app.innerHTML = `<div class="error">
+      <h2>Gagal memuat report.</h2>
+      <small>${esc(err.message || String(err))}</small>
+    </div>`;
+  }
+}
+
+loadReport();
+</script>
+</body>
+</html>
